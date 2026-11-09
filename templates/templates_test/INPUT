@@ -1,57 +1,61 @@
-$Project name
+$ ONDAS - single SWASH template for Base_case.ipynb
+$ Every option is set from the notebook. The bed (depth.bot) is written by
+$ SwashModelWrapper_ondas (scripts/wrappers.py).
+$
+$ Options filled in from the notebook:
+$   wave_type  'mono' (regular) or 'jonswap' (irregular)
+$   Hs, Tp     wave height (m) and peak period (s)
+$   H_regular  regular wave height, Hs / sqrt(2), same energy as the JONSWAP sea
+$   jonswap_gamma  JONSWAP peak enhancement (3.3 is the standard value)
+$   manning_n  bed friction, one Manning n for the whole profile
+$   WL         still water level (m)
+$
 PROJECT 'Ondas' '{{ case_num }}'
 $
-$Set water level
 SET LEVEL= {{ WL }}
+SET DEPMIN= 0.01
 $
-$(1D-mode, flume) or (2D-mode, basin)
 MODE DYNanic ONED
 COORD CARTesian
-$Computational grid: geographic location, size, resolution and orientation
 CGRID 0 0 0 {{ xlenc }} 0 {{ mxc }} 0
-$
-$Multi-layered mode
 VERT 1
 $
-$Reading bathymetry values from file
+$ Bed, from the profile built in the notebook
 INPGRID BOTTOM 0 0 0 {{ mxinp }} 0 {{ dxinp }} 0.0
 READINP BOTTOM 1 'depth.bot' 1 0 FREE
 $
-
-$Initial values for flow variables
 INIT ZERO
 $
-$Hydraulic boundary conditions
-BOUNDCOND SIDE W CCW BTYPE WEAK CON REGULAR {{ Hs }} {{ Tp }}
-BOU SIDE E CCW BTYPE RADIATION 
-SPON E 10 
+$ Offshore forcing
+{% if wave_type == 'mono' -%}
+BOUNDCOND SIDE W CCW BTYPE WEAK CON REGULAR {{ H_regular }} {{ Tp }}
+{% else -%}
+BOUNd SHAPespec JONswap {{ jonswap_gamma }} SIG PEAK DSPR DEGR
+$ JONSWAP sea with its bound long wave; 001500 = the series repeats after 1500 s
+BOUNdcond SIDE W CCW BTYPE WEAK ADDBoundwave CON SPECTRUM {{ Hs }} {{ Tp }} 90 0 001500
+{% endif -%}
+BOU SIDE E CCW BTYPE RADIATION
+SPON E 10
 $
-$Physics
-BREAK 
-FRIC MANNING 0.01
-
-$Numerics
+$ Physics
+BREAK
+FRIC MANNING {{ manning_n }}
+$
+$ Numerics (DEPMIN and TIMEI keep the reef and large-Hs cases stable)
 NONHYDrostatic BOX 1. PREConditioner ILU
-$
-$Output quantities
 DISCRET UPW MOM
 DISCRET UPW UMOM H NONE
 DISCRET UPW WMOM H NONE
 DISCRET CORR
+TIMEI 0.05 0.3
 $
-$Time integration
-TIMEI 0.1 0.5
-$
+$ Output
 QUANTITY XP hexp=10
 QUANT RUNUP delrp 0.01
-$
 CURVE 'line' 0 0 {{ xlenc }} {{ xlenc }} 0
 TABLE 'line' HEAD 'output.tab' TSEC XP YP WATL OUTPUT 0 1 SEC
-$
 TABLE 'NOGRID' HEAD 'run.tab' TSEC RUNUP OUTPUT 0 1 SEC
 $
-$Starts computation
 TEST  1,0
 COMPUTE 000000.000 {{ deltc }} SEC {{ tendc }}
 STOP
-$

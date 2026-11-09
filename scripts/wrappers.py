@@ -6,15 +6,26 @@ from scripts.bathymetry import linear_profile
 
 class SwashModelWrapper_ondas(SwashModelWrapper):
     """
-    Wrapper for the SWASH model with vegetation.
+    Wrapper for the SWASH model used in the course.
+
+    - Writes the bed (depth.bot) from depth_array.
+    - Adds H_regular = Hs / sqrt(2) to each case, so a regular wave carries the
+      same energy as an irregular sea with the same Hs.
+    - Removes the warmup from the output, so statistics (IG, setup, Ru2) are not
+      contaminated by the model spin-up.
     """
 
     def build_case(self, case_context: dict, case_dir: str) -> None:
+        case_context["H_regular"] = case_context["Hs"] / np.sqrt(2)
         super().build_case(case_context=case_context, case_dir=case_dir)
 
         # Save depth.bot
         np.savetxt(op.join(case_dir, "depth.bot"), self.depth_array)
- 
+
+    def _convert_case_output_files_to_nc(self, case_num, output_path, run_path):
+        ds = super()._convert_case_output_files_to_nc(case_num, output_path, run_path)
+        return ds.sel(Tsec=slice(self.fixed_parameters["warmup"], None))
+
 class SwashModelWrapper_friction(SwashModelWrapper):
     """
     Wrapper for the SWASH model with vegetation.
@@ -30,7 +41,7 @@ class SwashModelWrapper_friction(SwashModelWrapper):
 
         pos_ini = case_context['pos_ini']
         pos_fin = case_context['pos_fin']
-        
+
         friction_array[pos_ini:pos_fin] = friction_array[pos_ini:pos_fin] + case_context['friction_coef']
         np.savetxt(op.join(case_dir, 'friction.txt'), friction_array)
 
@@ -90,4 +101,4 @@ class SwashModelWrapper_shoaling(SwashModelWrapper):
         case_context["deltc"] = deltc
 
         # Save depth.bot
-        np.savetxt(op.join(case_dir, "depth.bot"), depth_array)
+        np.savetxt(op.join(case_dir, "depth.bot"), self.depth_array)
